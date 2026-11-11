@@ -46,16 +46,15 @@ jobs:
       - run: bun install
         working-directory: test
 
-      # The secrets are optional: without them the tests run against a public
-      # RPC, and without an OpenSea key only the NFT avatars are affected.
+      # The tests need no secrets: they run against a free public RPC. The
+      # OpenSea key is optional, without it only the NFT avatars are affected.
       - name: Set-up environment (${{ matrix.env_file }})
         shell: bash
         env:
-          RPC_URL: ${{ secrets.RPC_URL }}
           OPENSEA_API_KEY: ${{ secrets.OPENSEA_API_KEY }}
         run: |
           cat <<EOF > ${{ matrix.env_file }}
-          RPC_URL=${RPC_URL:-https://ethereum-rpc.publicnode.com}
+          RPC_URL=https://ethereum-rpc.publicnode.com
           OPENSEA_API_KEY=${OPENSEA_API_KEY:-none}
           UNIVERSAL_RESOLVER=0x8cab227b1162f03b8338331adaad7aadc83b895e
           REDIS_URL=redis://localhost:6379
