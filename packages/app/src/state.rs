@@ -1,6 +1,8 @@
 use std::env;
 use std::sync::Arc;
 
+use std::time::Duration;
+
 use enstate_shared::cache::{CacheLayer, PassthroughCacheLayer};
 use enstate_shared::core::gns;
 use enstate_shared::core::resolvers::gns::GnsContracts;
@@ -18,13 +20,23 @@ use crate::discovery::engine::DiscoveryEngine;
 use crate::http::RateLimiter;
 use crate::provider::RoundRobin;
 use crate::telemetry::metrics::Metrics;
-use crate::{cache, database};
+use crate::{cache, database, watcher};
 
 #[allow(clippy::module_name_repetitions)]
 pub struct AppState {
     pub service: ENSService,
     pub metrics: Metrics,
     pub rate_limiter: RateLimiter,
+    /// Settings of the `NameNFT` log watcher, `None` if it is not to run.
+    pub watcher: Option<watcher::Config>,
+}
+
+fn env_number(name: &str, default: u64) -> u64 {
+    env::var(name).map_or(default, |value| {
+        value
+            .parse()
+            .unwrap_or_else(|_| panic!("{name} should be a number"))
+    })
 }
 
 impl AppState {
@@ -54,8 +66,11 @@ impl AppState {
 
         info!("Connecting to Redis...");
 
-        let cache = database::setup().await.map_or_else(
-            |_| {
+        let redis = database::setup().await.ok();
+        let has_cache = redis.is_some();
+
+        let cache = redis.map_or_else(
+            || {
                 warn!("failed to connect to redis, using no cache");
 
                 Box::new(PassthroughCacheLayer {}) as Box<dyn CacheLayer>
@@ -100,6 +115,23 @@ impl AppState {
         let cache_ttl =
             env::var("PROFILE_CACHE_TTL").map_or(Some(600), |cache_ttl| cache_ttl.parse().ok());
 
+        let watcher_enabled =
+            env::var("WATCHER_ENABLED").map_or(true, |enabled| enabled != "false");
+
+        // without a cache there is nothing to keep in sync
+        let watcher = (watcher_enabled && has_cache).then(|| watcher::Config {
+            contract: gns_contract,
+            ws_url: env::var("WS_RPC_URL").ok().filter(|url| !url.is_empty()),
+            poll_interval: Duration::from_secs(env_number("WATCHER_POLL_INTERVAL", 12).max(1)),
+            reorg_depth: env_number("WATCHER_REORG_DEPTH", 12),
+            max_block_range: env_number("WATCHER_MAX_BLOCK_RANGE", 1000),
+            cache_ttl: cache_ttl.unwrap_or(600).into(),
+        });
+
+        if !watcher_enabled {
+            warn!("watcher disabled, cache entries are only refreshed when they expire");
+        }
+
         let meilisearch_url = env::var("MEILI_ENDPOINT").ok();
         let meilisearch_key = env::var("MEILI_KEY").ok();
 
@@ -128,6 +160,7 @@ impl AppState {
                 },
             },
             metrics: Metrics::new(),
+            watcher,
         }
     }
 }

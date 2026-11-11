@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use axum::{extract::State, response::IntoResponse};
-use prometheus::{Counter, CounterVec, Encoder, Histogram, Registry, TextEncoder};
+use prometheus::{
+    Counter, CounterVec, Encoder, Histogram, IntCounter, IntGauge, Registry, TextEncoder,
+};
 
 #[derive(Clone)]
 pub struct Metrics {
@@ -11,6 +13,10 @@ pub struct Metrics {
     pub name_lookup_latency: Histogram,
 
     pub rate_limit_infringements: CounterVec,
+
+    pub watcher_events_total: CounterVec,
+    pub watcher_invalidated_total: IntCounter,
+    pub watcher_block: IntGauge,
 }
 
 impl Metrics {
@@ -51,11 +57,42 @@ impl Metrics {
         //     .register(Box::new(rate_limit_infringements.clone()))
         //     .unwrap();
 
+        let watcher_events_total = CounterVec::new(
+            prometheus::Opts::new(
+                "watcher_events_total",
+                "Total number of NameNFT events processed by the watcher",
+            ),
+            &["event"],
+        )
+        .unwrap();
+        registry
+            .register(Box::new(watcher_events_total.clone()))
+            .unwrap();
+
+        let watcher_invalidated_total = IntCounter::with_opts(prometheus::Opts::new(
+            "watcher_invalidated_total",
+            "Total number of cache entries dropped because of NameNFT events",
+        ))
+        .unwrap();
+        registry
+            .register(Box::new(watcher_invalidated_total.clone()))
+            .unwrap();
+
+        let watcher_block = IntGauge::with_opts(prometheus::Opts::new(
+            "watcher_block",
+            "Last block whose NameNFT logs have been processed",
+        ))
+        .unwrap();
+        registry.register(Box::new(watcher_block.clone())).unwrap();
+
         Self {
             registry,
             name_lookup_total,
             name_lookup_latency,
             rate_limit_infringements,
+            watcher_events_total,
+            watcher_invalidated_total,
+            watcher_block,
         }
     }
 }

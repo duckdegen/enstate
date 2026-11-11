@@ -1,6 +1,7 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery)]
 
 use std::env;
+use std::sync::Arc;
 
 use dotenvy::dotenv;
 use futures::FutureExt;
@@ -21,6 +22,7 @@ mod routes;
 mod state;
 mod telemetry;
 mod discovery;
+mod watcher;
 
 #[tokio::main]
 async fn main() {
@@ -35,7 +37,12 @@ async fn main() {
     let mut sigint_signal =
         signal(SignalKind::interrupt()).expect("SIGINT handler should've registered");
 
-    let state = AppState::new().await;
+    let state = Arc::new(AppState::new().await);
+
+    let watcher_thread = state
+        .watcher
+        .clone()
+        .map(|config| tokio::spawn(watcher::run(state.clone(), config, shutdown_signal.clone())));
 
     let shutdown_clone = shutdown_signal.clone();
 
@@ -69,6 +76,10 @@ async fn main() {
     shutdown_signal.cancel();
 
     let _ = server_thread.await;
+
+    if let Some(watcher_thread) = watcher_thread {
+        let _ = watcher_thread.await;
+    }
 
     info!("exited successfully");
 }
