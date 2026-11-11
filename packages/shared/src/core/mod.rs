@@ -13,6 +13,7 @@ use crate::utils::factory::Factory;
 
 pub mod address;
 pub mod error;
+pub mod gns;
 pub mod lookup_data;
 pub mod profile;
 pub mod records;
