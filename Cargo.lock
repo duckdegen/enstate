@@ -1345,6 +1345,7 @@ dependencies = [
  "ethers-ccip-read",
  "ethers-contract",
  "ethers-core",
+ "futures",
  "getrandom 0.2.15",
  "hex",
  "hex-literal",

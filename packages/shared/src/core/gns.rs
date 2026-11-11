@@ -12,7 +12,7 @@ use ethers_core::utils::keccak256;
 use hex_literal::hex;
 use thiserror::Error;
 
-/// The only TLD served by this instance.
+/// The TLD of the Gwei Name Service. Names under any other TLD belong to ENS.
 pub const TLD: &str = "gwei";
 
 /// `namehash("gwei")`, as published by `NameNFT.GWEI_NODE`.
@@ -31,8 +31,8 @@ const MAX_LABEL_LENGTH: usize = 255;
 
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
 pub enum NameError {
-    #[error("Unsupported name: only .{TLD} names are served by this instance")]
-    UnsupportedTld,
+    #[error("Not a .{TLD} name")]
+    NotGwei,
 
     #[error("Invalid name: labels must be between 1 and {MAX_LABEL_LENGTH} bytes")]
     InvalidLabel,
@@ -53,14 +53,14 @@ impl GweiName {
     /// are lower-cased, every other byte is hashed as-is (callers are expected
     /// to have normalized Unicode beforehand). Unlike the contract a bare label
     /// without the `.gwei` suffix is rejected, so that `foo.eth` can never be
-    /// mistaken for a GNS name.
+    /// mistaken for a GNS name: everything else belongs to ENS.
     pub fn parse(input: &str) -> Result<Self, NameError> {
         let name = input.to_ascii_lowercase();
 
         let labels = name
             .strip_suffix(TLD)
             .and_then(|rest| rest.strip_suffix('.'))
-            .ok_or(NameError::UnsupportedTld)?;
+            .ok_or(NameError::NotGwei)?;
 
         let mut nodes = Vec::new();
         let mut node = GWEI_NODE;
@@ -229,11 +229,7 @@ mod tests {
     #[test]
     fn test_parse_rejects_other_names() {
         for name in ["luc.eth", "gwei", "foo", "foo.gwei.eth", "foogwei", ""] {
-            assert_eq!(
-                GweiName::parse(name),
-                Err(NameError::UnsupportedTld),
-                "{name}"
-            );
+            assert_eq!(GweiName::parse(name), Err(NameError::NotGwei), "{name}");
         }
 
         for name in [".gwei", "a..gwei", ".a.gwei", "a..b.gwei"] {

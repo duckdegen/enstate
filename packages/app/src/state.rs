@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use enstate_shared::cache::{CacheLayer, PassthroughCacheLayer};
 use enstate_shared::core::gns;
+use enstate_shared::core::lookup_data::NameSystem;
 use enstate_shared::core::resolvers::gns::GnsContracts;
 use enstate_shared::core::ENSService;
 use enstate_shared::discovery::Discovery;
@@ -37,6 +38,41 @@ fn env_number(name: &str, default: u64) -> u64 {
             .parse()
             .unwrap_or_else(|_| panic!("{name} should be a number"))
     })
+}
+
+fn env_address(name: &str) -> Option<H160> {
+    env::var(name).ok().map(|address| {
+        address
+            .parse()
+            .unwrap_or_else(|_| panic!("{name} should be a valid address"))
+    })
+}
+
+/// The order name services are preferred in for the primary name of an
+/// address, from `NAME_SERVICES_ORDER`.
+fn name_services_order() -> Vec<NameSystem> {
+    let order = env::var("NAME_SERVICES_ORDER").map_or_else(
+        |_| NameSystem::DEFAULT_ORDER.to_vec(),
+        |order| {
+            NameSystem::parse_order(&order)
+                .unwrap_or_else(|error| panic!("NAME_SERVICES_ORDER is invalid: {error}"))
+        },
+    );
+
+    info!("Primary names are preferred in the order {order:?}");
+
+    order
+}
+
+fn watcher_config(contract: H160, cache_ttl: u32) -> watcher::Config {
+    watcher::Config {
+        contract,
+        ws_url: env::var("WS_RPC_URL").ok().filter(|url| !url.is_empty()),
+        poll_interval: Duration::from_secs(env_number("WATCHER_POLL_INTERVAL", 12).max(1)),
+        reorg_depth: env_number("WATCHER_REORG_DEPTH", 12),
+        max_block_range: env_number("WATCHER_MAX_BLOCK_RANGE", 1000),
+        cache_ttl: cache_ttl.into(),
+    }
 }
 
 impl AppState {
@@ -97,17 +133,15 @@ impl AppState {
             |arweave_gateway| Url::parse(&arweave_gateway).unwrap().to_string(),
         );
 
-        let gns_contract = env::var("GNS_CONTRACT").map_or(gns::NAME_NFT, |address| {
-            address
-                .parse::<H160>()
-                .expect("GNS_CONTRACT should be a valid address")
-        });
+        let universal_resolver = env::var("UNIVERSAL_RESOLVER")
+            .expect("UNIVERSAL_RESOLVER should've been set")
+            .parse::<H160>()
+            .expect("UNIVERSAL_RESOLVER should be a valid address");
 
-        let multicall = env::var("MULTICALL_ADDRESS").map_or(gns::MULTICALL3, |address| {
-            address
-                .parse::<H160>()
-                .expect("MULTICALL_ADDRESS should be a valid address")
-        });
+        let gns_contract = env_address("GNS_CONTRACT").unwrap_or(gns::NAME_NFT);
+        let multicall = env_address("MULTICALL_ADDRESS").unwrap_or(gns::MULTICALL3);
+
+        let name_services_order = name_services_order();
 
         let max_bulk_size =
             env::var("MAX_BULK_SIZE").map_or(10, |bulk_size| bulk_size.parse().unwrap());
@@ -119,14 +153,8 @@ impl AppState {
             env::var("WATCHER_ENABLED").map_or(true, |enabled| enabled != "false");
 
         // without a cache there is nothing to keep in sync
-        let watcher = (watcher_enabled && has_cache).then(|| watcher::Config {
-            contract: gns_contract,
-            ws_url: env::var("WS_RPC_URL").ok().filter(|url| !url.is_empty()),
-            poll_interval: Duration::from_secs(env_number("WATCHER_POLL_INTERVAL", 12).max(1)),
-            reorg_depth: env_number("WATCHER_REORG_DEPTH", 12),
-            max_block_range: env_number("WATCHER_MAX_BLOCK_RANGE", 1000),
-            cache_ttl: cache_ttl.unwrap_or(600).into(),
-        });
+        let watcher = (watcher_enabled && has_cache)
+            .then(|| watcher_config(gns_contract, cache_ttl.unwrap_or(600)));
 
         if !watcher_enabled {
             warn!("watcher disabled, cache entries are only refreshed when they expire");
@@ -154,6 +182,8 @@ impl AppState {
                 cache_ttl,
                 profile_records: Arc::from(profile_records),
                 profile_chains: Arc::from(multicoin_chains),
+                universal_resolver,
+                name_services_order,
                 gns: GnsContracts {
                     name_nft: gns_contract,
                     multicall,

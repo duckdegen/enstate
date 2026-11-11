@@ -4,8 +4,10 @@ use std::sync::Arc;
 use ethers::prelude::Http;
 use ethers::providers::Provider;
 use ethers_ccip_read::CCIPReadMiddleware;
+use ethers_core::types::H160;
 use serde::{Deserialize, Serialize};
 
+use crate::core::lookup_data::NameSystem;
 use crate::core::resolvers::gns::GnsContracts;
 use crate::models::multicoin::cointype::coins::CoinType;
 use crate::utils::eip55::EIP55Address;
@@ -62,7 +64,11 @@ pub struct ENSService {
     pub arweave_gateway: String,
     pub profile_records: Arc<[String]>,
     pub profile_chains: Arc<[CoinType]>,
+    pub universal_resolver: H160,
     pub gns: GnsContracts,
+    /// The order name systems are preferred in when an address has a primary
+    /// name in more than one of them.
+    pub name_services_order: Vec<NameSystem>,
     pub max_bulk_size: usize,
     pub cache_ttl: Option<u32>,
 }

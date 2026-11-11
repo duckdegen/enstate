@@ -13,7 +13,7 @@ pub enum ProfileError {
     NotFound,
 
     #[error("{0}")]
-    UnsupportedName(#[from] NameError),
+    InvalidName(#[from] NameError),
 
     #[error("Address resolve error: {0}")]
     AddressResolveError(#[from] AddressResolveError),
