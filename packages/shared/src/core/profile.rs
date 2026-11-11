@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, HashSet};
 use std::str::FromStr;
 
-use ethers::prelude::{Middleware, MiddlewareBuilder};
-use ethers_ccip_read::CCIPReadMiddleware;
 use tracing::{info, instrument};
 
 use crate::cache::CacheError;
+use crate::core::address::{unix_now, AddressResolveError};
 use crate::core::error::ProfileError;
+use crate::core::gns::{self, GweiName};
 use crate::core::lookup_data::LookupInfo;
 use crate::core::{ENSService, Profile};
 use crate::models::lookup::ENSLookup;
@@ -19,25 +19,29 @@ impl ENSService {
         lookup: LookupInfo,
         fresh: bool,
     ) -> Result<Profile, ProfileError> {
-        let name = match lookup {
-            LookupInfo::Name(name) => name,
+        let gwei_name = match lookup {
+            LookupInfo::Name(name) => GweiName::parse(&name)?,
             LookupInfo::Address(address) => self
                 .primary_from_address(&address, fresh)
                 .await
-                .map_err(|_| ProfileError::NotFound)?,
+                .map_err(|error| match error {
+                    AddressResolveError::NotFound => ProfileError::NotFound,
+                    // not being able to tell is not the same as having no name
+                    error => ProfileError::AddressResolveError(error),
+                })?,
         };
 
-        let cache_key = format!("n:{name}");
+        // Keyed by namehash, which is what NameNFT events carry
+        let cache_key = gns::profile_key(&gwei_name.node());
+        let cache_tags = gwei_name.tags();
+        let cache_ttl = self.cache_ttl.unwrap_or(600);
 
-        let rpc = self.rpc.get_instance();
-
-        let rpc = rpc.wrap_into(CCIPReadMiddleware::new);
+        let name = gwei_name.as_str();
 
         info!(
             name = name,
             cache_key = cache_key,
             fresh = fresh,
-            rpc_url = rpc.inner().url().to_string(),
             "Looking up profile for {name}..."
         );
 
@@ -84,13 +88,24 @@ impl ENSService {
                 .map(ENSLookup::Multicoin),
         );
 
-        let resolved = self
-            .resolve_records(
-                LookupInfo::Name(name.to_string()),
-                &Vec::from_iter(calldata),
-                fresh,
-            )
+        let snapshot = self
+            .resolve_snapshot(&gwei_name, &Vec::from_iter(calldata))
             .await?;
+
+        let cache_error =
+            |CacheError::Other(err)| ProfileError::Other(format!("cache set failed: {}", err));
+
+        let Some(resolved) = snapshot.resolved else {
+            // Unregistered, expired or stale. Registration, renewal and
+            // re-registration of the name or one of its parents all emit
+            // events that drop this entry again.
+            self.cache
+                .set_tagged(&cache_key, "", cache_ttl, &cache_tags, snapshot.block)
+                .await
+                .map_err(cache_error)?;
+
+            return Err(ProfileError::NotFound);
+        };
 
         let address = resolved.records.get(&addr_key).cloned();
         let avatar = resolved.records.get(&avatar_key).cloned();
@@ -159,12 +174,16 @@ impl ENSService {
         let response =
             serde_json::to_string(&value).map_err(|err| ProfileError::Other(err.to_string()))?;
 
-        self.cache
-            .set(&cache_key, &response, self.cache_ttl.unwrap_or(600))
-            .await
-            .map_err(|CacheError::Other(err)| {
-                ProfileError::Other(format!("cache set failed: {}", err))
-            })?;
+        // Expiry emits no event, so the entry must not outlive the name. Use
+        // whichever clock is further ahead to stay on the safe side.
+        let now = unix_now().max(snapshot.timestamp);
+
+        if let Some(ttl) = gns::capped_ttl(cache_ttl, snapshot.expires_at, now) {
+            self.cache
+                .set_tagged(&cache_key, &response, ttl, &cache_tags, snapshot.block)
+                .await
+                .map_err(cache_error)?;
+        }
 
         Ok(value)
     }

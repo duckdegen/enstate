@@ -7,11 +7,11 @@ use ethers_ccip_read::CCIPReadMiddleware;
 use tracing::instrument;
 
 use crate::core::error::ProfileError;
+use crate::core::gns::GweiName;
 use crate::core::lookup_data::LookupInfo;
+use crate::core::resolvers::gns::resolve_name;
 use crate::core::ENSService;
 use crate::models::lookup::{ENSLookup, ENSLookupError, LookupState};
-
-use super::resolvers::universal::resolve_universal;
 
 pub struct ResolvedCalldata {
     pub resolver: Address,
@@ -20,72 +20,52 @@ pub struct ResolvedCalldata {
     pub invalid: HashMap<ENSLookup, ENSLookupError>,
 }
 
+/// Records of a name as of one block.
+pub struct ResolvedSnapshot {
+    /// Block the records were read at.
+    pub block: u64,
+    /// Timestamp of that block.
+    pub timestamp: u64,
+    /// Expiry of the top-level name the name lives under.
+    pub expires_at: u64,
+    /// `None` if the name does not currently resolve.
+    pub resolved: Option<ResolvedCalldata>,
+}
+
 impl ENSService {
-    // TODO: per-record caching
+    /// Reads and decodes `calldata` for `name` in a single round trip.
     #[instrument(skip_all)]
-    pub async fn resolve_records(
+    pub async fn resolve_snapshot(
         &self,
-        lookup: LookupInfo,
+        name: &GweiName,
         calldata: &[ENSLookup],
-        fresh: bool,
-    ) -> Result<ResolvedCalldata, ProfileError> {
-        let name = match lookup {
-            LookupInfo::Name(name) => name,
-            LookupInfo::Address(address) => self.primary_from_address(&address, fresh).await?,
-        };
-
-        // let cache_key = format!("n:{name}");
-
+    ) -> Result<ResolvedSnapshot, ProfileError> {
         let rpc = self.rpc.get_instance();
-        let rpc = rpc.wrap_into(CCIPReadMiddleware::new);
 
-        // If the value is in the cache, return it
-        // if !fresh {
-        //     if let Ok(value) = self.cache.get(&cache_key).await {
-        //         if value.is_empty() {
-        //             return Err(ResolveError::NotFound);
-        //         }
-        //
-        //         let entry_result: Result<Profile, _> = serde_json::from_str(value.as_str());
-        //         if let Ok(entry) = entry_result {
-        //             return Ok(entry);
-        //         }
-        //     }
-        // }
+        let snapshot = resolve_name(&rpc, &self.gns, name, calldata).await?;
 
-        let rpc = Arc::new(rpc);
-
-        // ENS CCIP unwrapper is limited to 50 sub-requests, i.e. per request
-        let mut resolves = Vec::new();
-
-        // TODO: make 50 chunk size configurable later
-        for chunk in calldata.chunks(50) {
-            resolves.push(resolve_universal(&name, chunk, &rpc, &self.universal_resolver).await?);
-        }
-
-        let Some((_, resolver, ccip_urls)) = resolves.first() else {
-            return Err(ProfileError::ImplementationError(String::new()));
+        let Some(data) = snapshot.records else {
+            return Ok(ResolvedSnapshot {
+                block: snapshot.block,
+                timestamp: snapshot.timestamp,
+                expires_at: snapshot.expires_at,
+                resolved: None,
+            });
         };
-
-        let data = resolves
-            .iter()
-            .flat_map(|(data, _, _)| data)
-            .collect::<Vec<_>>();
 
         let mut results: HashMap<ENSLookup, String> = HashMap::new();
         let mut errors: HashMap<ENSLookup, ENSLookupError> = HashMap::default();
 
         let lookup_state = LookupState {
-            rpc,
+            rpc: Arc::new(rpc.wrap_into(CCIPReadMiddleware::new)),
             opensea_api_key: self.opensea_api_key.clone(),
             ipfs_gateway: self.ipfs_gateway.clone(),
             arweave_gateway: self.arweave_gateway.clone(),
         };
 
-        // Assume results & calldata have the same length
+        // Results & calldata have the same length
         // Look through all calldata and decode the results at the same index
-        for (index, calldata) in calldata.iter().enumerate() {
-            let res = data[index];
+        for (calldata, res) in calldata.iter().zip(&data) {
             // TODO: think about this
             //  current behaviour ignores all errors from a resolver
             let result = if res.success {
@@ -105,24 +85,38 @@ impl ENSService {
             }
         }
 
-        let value = ResolvedCalldata {
-            resolver: *resolver,
-            ccip_urls: ccip_urls.clone(),
-            records: results,
-            invalid: errors,
+        Ok(ResolvedSnapshot {
+            block: snapshot.block,
+            timestamp: snapshot.timestamp,
+            expires_at: snapshot.expires_at,
+            resolved: Some(ResolvedCalldata {
+                // NameNFT is the resolver of every .gwei name
+                resolver: self.gns.name_nft,
+                // GNS is fully on-chain
+                ccip_urls: Vec::new(),
+                records: results,
+                invalid: errors,
+            }),
+        })
+    }
+
+    // TODO: per-record caching
+    #[instrument(skip_all)]
+    pub async fn resolve_records(
+        &self,
+        lookup: LookupInfo,
+        calldata: &[ENSLookup],
+        fresh: bool,
+    ) -> Result<ResolvedCalldata, ProfileError> {
+        let name = match lookup {
+            LookupInfo::Name(name) => GweiName::parse(&name)?,
+            LookupInfo::Address(address) => self.primary_from_address(&address, fresh).await?,
         };
 
-        // let response = serde_json::to_string(&value)
-        //     .map_err(|err| ProfileResolveError::Other(err.to_string()))?;
-        //
-        // self.cache
-        //     .set(&cache_key, &response, self.cache_ttl.unwrap_or(600))
-        //     .await
-        //     .map_err(|CacheError::Other(err)| {
-        //         ProfileResolveError::Other(format!("cache set failed: {}", err))
-        //     })?;
-
-        Ok(value)
+        self.resolve_snapshot(&name, calldata)
+            .await?
+            .resolved
+            .ok_or(ProfileError::NotFound)
     }
 
     // utility function
@@ -134,7 +128,7 @@ impl ENSService {
         fresh: bool,
     ) -> Result<String, ProfileError> {
         let resolved = self
-            .resolve_records(lookup, &[record.clone()], fresh)
+            .resolve_records(lookup, std::slice::from_ref(&record), fresh)
             .await?;
 
         let record = resolved

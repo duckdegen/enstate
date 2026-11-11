@@ -153,22 +153,6 @@ pub async fn get_bulk_sse(
         let state_clone = state.clone();
         let event_tx_clone = event_tx.clone();
         tokio::spawn(async move {
-            let dne_cache_key = format!("dne:{}", address_input);
-            let cached_not_exists = state_clone.service.cache.get(&dne_cache_key).await;
-
-            if let Ok(_) = cached_not_exists {
-                let sse_response = SSEResponse {
-                    query: address_input,
-                    response: BulkResponse::Err(
-                        http_simple_status_error(StatusCode::NOT_FOUND).into(),
-                    ),
-                };
-
-                return event_tx_clone.send(Ok(Event::default()
-                    .json_data(sse_response)
-                    .expect("json_data should've succeeded")));
-            }
-
             let profile = 'a: {
                 let address = address_input.parse::<Address>();
 
@@ -182,10 +166,6 @@ pub async fn get_bulk_sse(
                     .await
                     .map_err(profile_http_error_mapper)
             };
-
-            if profile.is_err() {
-                state_clone.service.cache.set(&dne_cache_key, "404", state_clone.service.cache_ttl.unwrap_or(600)).await;
-            }
 
             let sse_response = SSEResponse {
                 query: address_input,

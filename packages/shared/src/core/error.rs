@@ -1,4 +1,6 @@
 use crate::core::address::AddressResolveError;
+use crate::core::gns::NameError;
+use crate::core::resolvers::gns::GnsError;
 use ethers::prelude::{Provider, ProviderError};
 use ethers::providers::Http;
 use ethers_ccip_read::CCIPReadMiddlewareError;
@@ -9,6 +11,9 @@ use thiserror::Error;
 pub enum ProfileError {
     #[error("Not Found")]
     NotFound,
+
+    #[error("{0}")]
+    UnsupportedName(#[from] NameError),
 
     #[error("Address resolve error: {0}")]
     AddressResolveError(#[from] AddressResolveError),
@@ -27,6 +32,15 @@ pub enum ProfileError {
 
     #[error("Other: {0}")]
     Other(String),
+}
+
+impl From<GnsError> for ProfileError {
+    fn from(error: GnsError) -> Self {
+        match error {
+            GnsError::Rpc(error) => Self::RPCError(error),
+            GnsError::Decode(_) => Self::ImplementationError(error.to_string()),
+        }
+    }
 }
 
 impl AsRef<ProfileError> for ProfileError {

@@ -2,6 +2,8 @@ use std::env;
 use std::sync::Arc;
 
 use enstate_shared::cache::{CacheLayer, PassthroughCacheLayer};
+use enstate_shared::core::gns;
+use enstate_shared::core::resolvers::gns::GnsContracts;
 use enstate_shared::core::ENSService;
 use enstate_shared::discovery::Discovery;
 use enstate_shared::models::{
@@ -80,10 +82,17 @@ impl AppState {
             |arweave_gateway| Url::parse(&arweave_gateway).unwrap().to_string(),
         );
 
-        let universal_resolver = env::var("UNIVERSAL_RESOLVER")
-            .expect("UNIVERSAL_RESOLVER should've been set")
-            .parse::<H160>()
-            .expect("UNIVERSAL_RESOLVER should be a valid address");
+        let gns_contract = env::var("GNS_CONTRACT").map_or(gns::NAME_NFT, |address| {
+            address
+                .parse::<H160>()
+                .expect("GNS_CONTRACT should be a valid address")
+        });
+
+        let multicall = env::var("MULTICALL_ADDRESS").map_or(gns::MULTICALL3, |address| {
+            address
+                .parse::<H160>()
+                .expect("MULTICALL_ADDRESS should be a valid address")
+        });
 
         let max_bulk_size =
             env::var("MAX_BULK_SIZE").map_or(10, |bulk_size| bulk_size.parse().unwrap());
@@ -113,7 +122,10 @@ impl AppState {
                 cache_ttl,
                 profile_records: Arc::from(profile_records),
                 profile_chains: Arc::from(multicoin_chains),
-                universal_resolver,
+                gns: GnsContracts {
+                    name_nft: gns_contract,
+                    multicall,
+                },
             },
             metrics: Metrics::new(),
         }
