@@ -49,7 +49,7 @@ opentelemetry-otlp = "0.15.0"
 tracing-opentelemetry = "0.23.0"
 
 # Ethereum
-ethers = "2"
+ethers = { version = "2", features = ["ws", "openssl"] }
 ethers-contract = "2.0.9"
 ethers-core = "2.0.9"
 

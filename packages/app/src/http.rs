@@ -182,14 +182,12 @@ impl App {
     }
 }
 
-pub fn setup(mut state: AppState) -> App {
+pub fn setup(state: Arc<AppState>) -> App {
     let docs = Router::new()
         .route("/openapi.json", get(crate::docs::openapi))
         .route("/", get(scalar_handler))
         .route("/favicon.png", get(scalar_favicon_handler))
         .route("/opengraph.png", get(scalar_opengraph_handler));
-
-    let state = Arc::new(state);
 
     let v2 = setup_v2_router(state.clone());
 

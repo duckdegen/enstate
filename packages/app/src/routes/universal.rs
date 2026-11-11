@@ -28,6 +28,7 @@ use crate::routes::{profile_http_error_mapper, validate_bulk_input, FreshQuery, 
 /// Here is an example of a valid request that looks up an address or name:
 /// ```url
 /// /u/luc.eth
+/// /u/gns.gwei
 /// /u/0x225f137127d9067788314bc7fcc1f36746a3c3B5
 /// ```
 ///

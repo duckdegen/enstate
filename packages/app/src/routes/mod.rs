@@ -50,6 +50,7 @@ pub fn profile_http_error_mapper<T: AsRef<ProfileError>>(err: T) -> ErrorRespons
     let err = err.as_ref();
     let status = match err {
         ProfileError::NotFound => StatusCode::NOT_FOUND,
+        ProfileError::InvalidName(_) => StatusCode::BAD_REQUEST,
         ProfileError::CCIPError(_) => StatusCode::BAD_GATEWAY,
         ProfileError::RPCError(ProviderError::EnsNotOwned(_)) => StatusCode::UNPROCESSABLE_ENTITY,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
