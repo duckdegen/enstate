@@ -18,11 +18,12 @@ export const dataset_name_single: Dataset<{ address: string } | { status: number
         arg: randomBytes(8).toString('hex') + '.eth',
         expected: { status: 404 },
     },
-    {
-        label: 'DNSRegistry',
-        arg: 'luc.computer',
-        expected: { address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
-    },
+    // TODO: the offchain gateway of these names (rs.myeth.id) no longer returns their records
+    // {
+    //     label: 'DNSRegistry',
+    //     arg: 'luc.computer',
+    //     expected: { address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
+    // },
     // {
     //     label: 'DNSRegistry',
     //     arg: 'luc.cash',
@@ -38,11 +39,12 @@ export const dataset_name_single: Dataset<{ address: string } | { status: number
         arg: randomBytes(8).toString('hex') + '.com',
         expected: { status: 404 },
     },
-    {
-        label: 'CCIP Offchain RS',
-        arg: 'luc.willbreak.eth',
-        expected: { address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
-    },
+    // TODO: the offchain gateway of this name (rs.myeth.id) no longer returns its records
+    // {
+    //     label: 'CCIP Offchain RS',
+    //     arg: 'luc.willbreak.eth',
+    //     expected: { address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
+    // },
     // {
     //     label: 'CCIP Coinbase',
     //     arg: 'lucemans.cb.id',
@@ -170,11 +172,12 @@ export const dataset_universal_single: Dataset<
         arg: randomBytes(8).toString('hex') + '.eth',
         expected: { status: 404 },
     },
-    {
-        label: 'DNSRegistry',
-        arg: 'luc.computer',
-        expected: { address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
-    },
+    // TODO: the offchain gateway of these names (rs.myeth.id) no longer returns their records
+    // {
+    //     label: 'DNSRegistry',
+    //     arg: 'luc.computer',
+    //     expected: { address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
+    // },
     // {
     //     label: 'DNSRegistry (offchain DNSSEC)',
     //     arg: 'luc.cash',
@@ -185,11 +188,12 @@ export const dataset_universal_single: Dataset<
         arg: randomBytes(8).toString('hex') + '.com',
         expected: { status: 404 },
     },
-    {
-        label: 'CCIP Offchain RS',
-        arg: 'luc.willbreak.eth',
-        expected: { address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
-    },
+    // TODO: the offchain gateway of this name (rs.myeth.id) no longer returns its records
+    // {
+    //     label: 'CCIP Offchain RS',
+    //     arg: 'luc.willbreak.eth',
+    //     expected: { address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
+    // },
     // TODO: refer to above todo
     // {
     //     label: 'CCIP Coinbase',

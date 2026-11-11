@@ -68,17 +68,18 @@ export const dataset_name_bulk: Dataset<
     //         response_length: 2,
     //     },
     // },
-    {
-        label: 'CCIP',
-        arg: qs.stringify({ names: ['luc.willbreak.eth', 'lucemans.cb.id'] }, { encode: false }),
-        expected: {
-            response: [
-                { type: 'success', address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
-                { type: 'success', address: '0x4e7abb71BEe38011c54c30D0130c0c71Da09222b' },
-            ],
-            response_length: 2,
-        },
-    },
+    // TODO: the offchain gateway of luc.willbreak.eth (rs.myeth.id) no longer returns its records
+    // {
+    //     label: 'CCIP',
+    //     arg: qs.stringify({ names: ['luc.willbreak.eth', 'lucemans.cb.id'] }, { encode: false }),
+    //     expected: {
+    //         response: [
+    //             { type: 'success', address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
+    //             { type: 'success', address: '0x4e7abb71BEe38011c54c30D0130c0c71Da09222b' },
+    //         ],
+    //         response_length: 2,
+    //     },
+    // },
     {
         label: 'Errors (not found)',
         arg: qs.stringify(
@@ -337,11 +338,9 @@ export const dataset_universal_bulk: Dataset<
         label: 'Mixed',
         arg: qs.stringify(
             {
-                queries: [
-                    '0x225f137127d9067788314bc7fcc1f36746a3c3B5',
-                    'luc.eth',
-                    'luc.willbreak.eth',
-                ],
+                // TODO: luc.willbreak.eth was the third query, but its offchain
+                // gateway (rs.myeth.id) no longer returns its records
+                queries: ['0x225f137127d9067788314bc7fcc1f36746a3c3B5', 'luc.eth'],
             },
             { encode: false }
         ),
@@ -349,9 +348,8 @@ export const dataset_universal_bulk: Dataset<
             response: [
                 { type: 'success', name: 'luc.eth' },
                 { type: 'success', address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
-                { type: 'success', address: '0x225f137127d9067788314bc7fcc1f36746a3c3B5' },
             ],
-            response_length: 3,
+            response_length: 2,
         },
     },
     {

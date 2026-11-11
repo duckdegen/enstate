@@ -161,6 +161,13 @@ impl ENSService {
 
         let value = self.build_profile(name, resolved);
 
+        // Every `.eth` name is answered by a resolver these days, registered
+        // or not, so an unregistered name comes back as a profile without a
+        // single record instead of failing to resolve.
+        if value.is_blank() {
+            return Err(ProfileError::NotFound);
+        }
+
         // Update metrics
         // TODO: +1 on cache hit popularity discover
 

@@ -18,9 +18,16 @@ jobs:
     # runs-on: arc-runner-set
     runs-on: ubuntu-latest
     needs: [prebuild]
-    env:
-      SCCACHE_GHA_ENABLED: "on"
-      RUSTC_WRAPPER: "sccache"
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     strategy:
       fail-fast: false
       matrix:
@@ -32,27 +39,15 @@ jobs:
           #   build: bun install --global pnpm && pnpm install && pnpm build
           #   env_file: .dev.vars
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v1
-
-      - name: Configure sccache
-        uses: actions/github-script@v6
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
-      - name: Run sccache-cache
-        uses: mozilla-actions/sccache-action@v0.0.3
-        with:
-          version: "v0.7.4"
+      - uses: oven-sh/setup-bun@v2
 
       - run: bun install
         working-directory: test
 
+      # The secrets are optional: without them the tests run against a public
+      # RPC, and without an OpenSea key only the NFT avatars are affected.
       - name: Set-up environment (${{ matrix.env_file }})
         shell: bash
         env:
@@ -60,9 +55,11 @@ jobs:
           OPENSEA_API_KEY: ${{ secrets.OPENSEA_API_KEY }}
         run: |
           cat <<EOF > ${{ matrix.env_file }}
-          RPC_URL=$RPC_URL
-          OPENSEA_API_KEY=$OPENSEA_API_KEY
+          RPC_URL=${RPC_URL:-https://ethereum-rpc.publicnode.com}
+          OPENSEA_API_KEY=${OPENSEA_API_KEY:-none}
           UNIVERSAL_RESOLVER=0x8cab227b1162f03b8338331adaad7aadc83b895e
+          REDIS_URL=redis://localhost:6379
+          PORT=3000
           EOF
         working-directory: packages/${{ matrix.suite }}
 
@@ -79,6 +76,29 @@ jobs:
       #   run: ${{ matrix.build }}
       #   working-directory: ${{ matrix.suite }}
 
+      - name: Start ENState
+        shell: bash
+        run: |
+          nohup ../../target/release/enstate > enstate.log 2>&1 &
+
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail --output /dev/null http://127.0.0.1:3000/; then
+              echo "ENState is up"
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "ENState did not start"
+          cat enstate.log
+          exit 1
+        working-directory: packages/${{ matrix.suite }}
+
       - name: Test
-        run: bun test --env-file=../app/.env ${{ matrix.suite }} --timeout 10000 --rerun-each 2
+        run: bun test server --timeout 20000 --rerun-each 2
         working-directory: test
+
+      - name: ENState logs
+        if: failure()
+        run: tail -n 200 enstate.log
+        working-directory: packages/${{ matrix.suite }}

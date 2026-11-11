@@ -55,6 +55,19 @@ pub struct Profile {
     pub errors: BTreeMap<String, String>,
 }
 
+impl Profile {
+    /// Whether the name has no address and no record of any kind, which is
+    /// what a name nobody registered resolves to.
+    pub fn is_blank(&self) -> bool {
+        self.address.is_none()
+            && self.avatar.is_none()
+            && self.header.is_none()
+            && self.contenthash.is_none()
+            && self.records.is_empty()
+            && self.chains.is_empty()
+    }
+}
+
 pub struct ENSService {
     pub cache: Box<dyn crate::cache::CacheLayer>,
     pub discovery: Option<Box<dyn crate::discovery::Discovery>>,
@@ -71,4 +84,55 @@ pub struct ENSService {
     pub name_services_order: Vec<NameSystem>,
     pub max_bulk_size: usize,
     pub cache_ttl: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use ethers_core::types::H160;
+
+    use super::Profile;
+    use crate::utils::eip55::EIP55Address;
+
+    fn blank_profile() -> Profile {
+        Profile {
+            name: "name.eth".to_string(),
+            address: None,
+            avatar: None,
+            header: None,
+            display: "name.eth".to_string(),
+            contenthash: None,
+            records: BTreeMap::new(),
+            chains: BTreeMap::new(),
+            fresh: 0,
+            resolver: EIP55Address(H160::repeat_byte(1)),
+            ccip_urls: vec![],
+            errors: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn profile_without_any_record_is_blank() {
+        assert!(blank_profile().is_blank());
+    }
+
+    #[test]
+    fn profile_with_an_address_or_a_record_is_not_blank() {
+        let mut with_address = blank_profile();
+        with_address.address = Some(EIP55Address(H160::repeat_byte(2)));
+        assert!(!with_address.is_blank());
+
+        let mut with_record = blank_profile();
+        with_record
+            .records
+            .insert("com.twitter".to_string(), "name".to_string());
+        assert!(!with_record.is_blank());
+
+        let mut with_chain = blank_profile();
+        with_chain
+            .chains
+            .insert("btc".to_string(), "bc1q".to_string());
+        assert!(!with_chain.is_blank());
+    }
 }
