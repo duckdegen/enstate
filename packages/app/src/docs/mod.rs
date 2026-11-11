@@ -13,7 +13,7 @@ use utoipa::OpenApi;
 #[openapi(
     info(
         title = "enstate.rs",
-        description = "An API allowing for easy access to Gwei Name Service (`.gwei`) profiles, cached and kept in sync with the events of the GNS contract.\n\nOnly `.gwei` names are served: any other name is rejected with a `400`.\n\nBased on [v3xlabs/enstate](https://github.com/v3xlabs/enstate).",
+        description = "A hosted ENS API allowing for easy access to ENS data.\n\nThis instance also serves `.gwei` names of the Gwei Name Service: any name ending in `.gwei` is resolved there, every other name on ENS. An address is known by its `.gwei` primary name if it has one, otherwise by its ENS primary name (the order is configurable).\n\nYou can checkout the source code, contribute, or host a version for yourself at [v3xlabs/enstate](https://github.com/v3xlabs/enstate).",
     ),
     paths(
         crate::routes::address::get, crate::routes::name::get, crate::routes::universal::get,
@@ -38,7 +38,7 @@ pub async fn openapi() -> String {
 
     let mut tag1 = Tag::default();
     tag1.name = "Single Profile".to_string();
-    tag1.description = Some("If you want to resolve a single `.gwei` name / profile you can do a single lookup in one of the following ways.".to_string());
+    tag1.description = Some("If you want to resolve a single ENS Name / Profile you can do a single lookup in one of the following ways.".to_string());
     let mut tag2 = Tag::default();
     tag2.name = "Bulk Profiles".to_string();
     tag2.description = Some("In some cases you might want to resolve a list of names or addresses. In this case you can use the bulk endpoints. This endpoint waits for all names to be resolved before returning a result.\n\nNote: You might prefer to use the [SSE Streaming Endpoints](#tag/stream-profiles) for a more responsive feel.".to_string());

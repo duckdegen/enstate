@@ -2,8 +2,8 @@
 
 ## Development
 
-Copy `.env.example` to `.env` and fill in the required environment variables. All of them are described in the
-[README](../../README.md#configuration) at the root of the repository.
+Copy `.env.example` to `.env` and fill in the required environment variables. The ones that concern `.gwei` names
+are described in the [README](../../README.md#configuration) at the root of the repository.
 
 To run the caching and monitoring stack locally, you can run:
 

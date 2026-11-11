@@ -27,8 +27,9 @@ use crate::routes::{profile_http_error_mapper, validate_bulk_input, FreshQuery, 
 ///
 /// Here is an example of a valid request that looks up an address or name:
 /// ```url
+/// /u/luc.eth
 /// /u/gns.gwei
-/// /u/0xC04689227Fa24785609B1174698DBe481437f1A3
+/// /u/0x225f137127d9067788314bc7fcc1f36746a3c3B5
 /// ```
 ///
 /// You can also use the [useProfile](https://github.com/v3xlabs/use-enstate/blob/master/src/hooks/useProfile.ts) hook from [use-enstate](https://github.com/v3xlabs/use-enstate).
@@ -39,7 +40,6 @@ use crate::routes::{profile_http_error_mapper, validate_bulk_input, FreshQuery, 
     responses(
         (status = 200, description = "Successfully found name or address.", body = ENSProfile),
         (status = NOT_FOUND, description = "No name or address could be found.", body = ErrorResponse),
-        (status = BAD_REQUEST, description = "Not a .gwei name.", body = ErrorResponse),
         (status = UNPROCESSABLE_ENTITY, description = "Reverse record not owned by this address.", body = ErrorResponse),
     ),
     params(
@@ -84,7 +84,7 @@ pub async fn get(
 pub struct UniversalGetBulkQuery {
     // TODO (@antony1060): remove when proper serde error handling
     // list of names or addresses to lookup
-    #[schema(example = json!(["gns.gwei", "donnoh.gwei", "tatsumaki.gwei", "geek.gwei"]))]
+    #[schema(example = json!(["luc.eth", "nick.eth", "helgesson.eth", "irc.eth", "khori.eth", "v3x.eth"]))]
     #[serde(default)]
     queries: Vec<String>,
 
@@ -99,7 +99,7 @@ pub struct UniversalGetBulkQuery {
 ///
 /// Here is an example of a valid request that looks up multiple names:
 /// ```url
-/// /bulk/u?queries[]=gns.gwei&queries[]=donnoh.gwei&queries[]=tatsumaki.gwei&queries[]=geek.gwei
+/// /bulk/u?queries[]=luc.eth&queries[]=nick.eth&queries[]=helgesson.eth&queries[]=irc.eth&queries[]=khori.eth&queries[]=v3x.eth
 /// ```
 ///
 /// You can also use the [useBulkProfile](https://github.com/v3xlabs/use-enstate/blob/master/src/hooks/useBulkProfile.ts) hook from [use-enstate](https://github.com/v3xlabs/use-enstate).
@@ -140,7 +140,7 @@ pub async fn get_bulk(
 ///
 /// Here is an example of a valid request that looks up multiple names:
 /// ```url
-/// /sse/u?queries[]=gns.gwei&queries[]=donnoh.gwei&queries[]=tatsumaki.gwei&queries[]=geek.gwei
+/// /sse/u?queries[]=luc.eth&queries[]=nick.eth&queries[]=helgesson.eth&queries[]=irc.eth&queries[]=khori.eth&queries[]=v3x.eth
 /// ```
 ///
 /// You can also use the [useSSEProfiles](https://github.com/v3xlabs/use-enstate/blob/master/src/hooks/useSSEProfiles.ts) hook from [use-enstate](https://github.com/v3xlabs/use-enstate).
