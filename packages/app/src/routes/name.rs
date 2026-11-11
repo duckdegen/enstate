@@ -22,7 +22,7 @@ use crate::routes::{profile_http_error_mapper, validate_bulk_input, FreshQuery, 
 ///
 /// Here is an example of a valid request that looks up a name:
 /// ```url
-/// /n/luc.eth
+/// /n/gns.gwei
 /// ```
 #[utoipa::path(
     get,
@@ -31,6 +31,7 @@ use crate::routes::{profile_http_error_mapper, validate_bulk_input, FreshQuery, 
     responses(
         (status = 200, description = "Successfully found name.", body = ENSProfile),
         (status = NOT_FOUND, description = "No name could be found.", body = ErrorResponse),
+        (status = BAD_REQUEST, description = "Not a .gwei name.", body = ErrorResponse),
     ),
     params(
         ("name" = String, Path, description = "Name to lookup the name data for."),
@@ -80,7 +81,7 @@ pub struct NameGetBulkQuery {
 ///
 /// Here is an example of a valid request that looks up multiple names:
 /// ```url
-/// /bulk/n?names[]=luc.eth&names[]=nick.eth&names[]=helgesson.eth&names[]=irc.eth&names[]=khori.eth&names[]=v3x.eth
+/// /bulk/n?names[]=gns.gwei&names[]=donnoh.gwei&names[]=tatsumaki.gwei&names[]=geek.gwei
 /// ```
 #[utoipa::path(
     get,
@@ -128,7 +129,7 @@ pub async fn get_bulk(
 ///
 /// Here is an example of a valid request that looks up multiple names:
 /// ```url
-/// /sse/n?names[]=luc.eth&names[]=nick.eth&names[]=helgesson.eth&names[]=irc.eth&names[]=khori.eth&names[]=v3x.eth
+/// /sse/n?names[]=gns.gwei&names[]=donnoh.gwei&names[]=tatsumaki.gwei&names[]=geek.gwei
 /// ```
 #[utoipa::path(
     get,

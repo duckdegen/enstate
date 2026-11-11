@@ -17,7 +17,7 @@ use crate::routes::{FreshQuery, http_simple_status_error, profile_http_error_map
 /// 
 /// To use in your app, you can use the following HTML:
 /// ```html
-/// <img src="https://enstate.rs/i/luc.eth" alt="luc.eth" />
+/// <img src="/i/geek.gwei" alt="geek.gwei" />
 /// ```
 /// 
 /// Note: you should probably still have a fallback image in case the image is not found.
